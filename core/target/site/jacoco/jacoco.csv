@@ -1,0 +1,24 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new SelectionListener() {...},19,0,0,0,5,0,3,0,3,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,LabelTimeComposite.new ModifyListener() {...},29,0,2,0,5,0,3,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new SelectionListener() {...},55,0,6,0,8,0,6,0,3,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new FocusListener() {...},14,0,0,0,4,0,3,0,3,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new ModifyListener() {...},11,0,0,0,3,0,2,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog,2423,0,42,0,429,0,46,0,25,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new Listener() {...},10,0,0,0,3,0,2,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new Listener() {...},10,0,0,0,3,0,2,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new SelectionAdapter() {...},10,0,0,0,3,0,2,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,LabelTimeComposite,287,0,6,0,65,0,18,0,15,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new ModifyListener() {...},11,0,0,0,3,0,2,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new Listener() {...},10,0,0,0,3,0,2,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new ShellAdapter() {...},10,0,0,0,3,0,2,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new FocusListener() {...},14,0,0,0,4,0,3,0,3,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.ui.trans.steps.elasticsearchbulk,ElasticSearchBulkDialog.new Listener() {...},13,0,0,0,3,0,2,0,2,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.trans.steps.elasticsearchbulk,ElasticSearchBulkMeta.Dom,3,0,0,0,1,0,1,0,1,0
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.trans.steps.elasticsearchbulk,ElasticSearchBulkMeta,300,1784,28,40,47,288,25,65,7,49
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.trans.steps.elasticsearchbulk,ElasticSearchBulkData,0,6,0,0,0,3,0,1,0,1
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.trans.steps.elasticsearchbulk,ElasticSearchBulkMeta.Server,8,3,0,0,1,1,1,1,1,1
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.trans.steps.elasticsearchbulk,ElasticSearchBulkMeta.Indentation,0,56,1,1,0,11,1,5,0,5
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.trans.steps.elasticsearchbulk,ElasticSearchBulkMeta.Setting,0,3,0,0,0,1,0,1,0,1
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.trans.steps.elasticsearchbulk,ElasticSearchBulkMeta.Field,0,3,0,0,0,1,0,1,0,1
+PDI Elasticsearch Bulk Insert Plugin Core,org.pentaho.di.trans.steps.elasticsearchbulk,ElasticSearchBulk,684,0,60,0,156,0,44,0,14,0

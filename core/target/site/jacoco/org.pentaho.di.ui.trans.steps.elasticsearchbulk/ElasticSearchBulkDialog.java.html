@@ -1,0 +1,893 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="zh"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ElasticSearchBulkDialog.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">PDI Elasticsearch Bulk Insert Plugin Core</a> &gt; <a href="index.source.html" class="el_package">org.pentaho.di.ui.trans.steps.elasticsearchbulk</a> &gt; <span class="el_source">ElasticSearchBulkDialog.java</span></div><h1>ElasticSearchBulkDialog.java</h1><pre class="source lang-java linenums">/*! ******************************************************************************
+ *
+ * Pentaho Data Integration
+ *
+ * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ *
+ *******************************************************************************
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ ******************************************************************************/
+
+package org.pentaho.di.ui.trans.steps.elasticsearchbulk;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.HttpHost;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CTabFolder;
+import org.eclipse.swt.custom.CTabItem;
+import org.eclipse.swt.events.FocusListener;
+import org.eclipse.swt.events.ModifyEvent;
+import org.eclipse.swt.events.ModifyListener;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.events.SelectionListener;
+import org.eclipse.swt.events.ShellAdapter;
+import org.eclipse.swt.events.ShellEvent;
+import org.eclipse.swt.layout.FormAttachment;
+import org.eclipse.swt.layout.FormData;
+import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.MessageBox;
+import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.Text;
+
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.pentaho.di.core.Const;
+import org.pentaho.di.core.Props;
+import org.pentaho.di.core.exception.KettleException;
+import org.pentaho.di.core.row.RowMetaInterface;
+import org.pentaho.di.i18n.BaseMessages;
+import org.pentaho.di.trans.TransMeta;
+import org.pentaho.di.trans.step.BaseStepMeta;
+import org.pentaho.di.trans.step.StepDialogInterface;
+import org.pentaho.di.trans.steps.elasticsearchbulk.ElasticSearchBulkMeta;
+import org.pentaho.di.ui.core.dialog.ErrorDialog;
+import org.pentaho.di.ui.core.widget.ColumnInfo;
+import org.pentaho.di.ui.core.widget.LabelComboVar;
+import org.pentaho.di.ui.core.widget.LabelTextVar;
+import org.pentaho.di.ui.core.widget.TableView;
+import org.pentaho.di.ui.core.widget.TextVar;
+import org.pentaho.di.ui.trans.step.BaseStepDialog;
+
+public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialogInterface {
+
+  private ElasticSearchBulkMeta model;
+
+<span class="nc" id="L80">  private static Class&lt;?&gt; PKG = ElasticSearchBulkMeta.class;</span>
+  private CTabFolder wTabFolder;
+  private FormData fdTabFolder;
+  private CTabItem wGeneralTab;
+  private Composite wGeneralComp;
+  private FormData fdGeneralComp;
+  private Label wlBatchSize;
+
+  private TextVar wBatchSize;
+  private LabelTextVar wIdOutField;
+  private Group wIndexGroup;
+  private FormData fdIndexGroup;
+  private Group wSettingsGroup;
+  private FormData fdSettingsGroup;
+
+  private String[] fieldNames;
+
+  private CTabItem wFieldsTab;
+
+  private LabelTextVar wIndex;
+  private LabelTextVar wType;
+
+  private ModifyListener lsMod;
+
+  private Button wIsJson;
+
+  private Label wlIsJson;
+
+  private Label wlUseOutput;
+
+  private Button wUseOutput;
+
+  private LabelComboVar wJsonField;
+
+  private TableView wFields;
+
+  private CTabItem wServersTab;
+
+  private TableView wServers;
+
+  private CTabItem wSettingsTab;
+
+  private TableView wSettings;
+
+  private LabelTimeComposite wTimeOut;
+
+  private Label wlStopOnError;
+
+  private Button wStopOnError;
+
+  private Button wTest;
+
+  private Button wTestCl;
+
+  private LabelComboVar wIdInField;
+
+  private Button wIsOverwrite;
+
+  private Label wlIsOverwrite;
+
+  public ElasticSearchBulkDialog( Shell parent, Object in, TransMeta transMeta, String sname ) {
+<span class="nc" id="L141">    super( parent, (BaseStepMeta) in, transMeta, sname );</span>
+<span class="nc" id="L142">    model = (ElasticSearchBulkMeta) in;</span>
+<span class="nc" id="L143">  }</span>
+
+  public String open() {
+<span class="nc" id="L146">    Shell parent = getParent();</span>
+<span class="nc" id="L147">    Display display = parent.getDisplay();</span>
+
+<span class="nc" id="L149">    shell = new Shell( parent, SWT.DIALOG_TRIM | SWT.RESIZE | SWT.MAX | SWT.MIN );</span>
+<span class="nc" id="L150">    props.setLook( shell );</span>
+<span class="nc" id="L151">    setShellImage( shell, model );</span>
+
+<span class="nc" id="L153">    lsMod = new ModifyListener() {</span>
+
+      public void modifyText( ModifyEvent e ) {
+<span class="nc" id="L156">        model.setChanged();</span>
+<span class="nc" id="L157">      }</span>
+    };
+
+<span class="nc" id="L160">    changed = model.hasChanged();</span>
+
+<span class="nc" id="L162">    FormLayout formLayout = new FormLayout();</span>
+<span class="nc" id="L163">    formLayout.marginWidth = Const.FORM_MARGIN;</span>
+<span class="nc" id="L164">    formLayout.marginHeight = Const.FORM_MARGIN;</span>
+
+<span class="nc" id="L166">    shell.setLayout( formLayout );</span>
+<span class="nc" id="L167">    shell.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.DialogTitle&quot; ) );</span>
+
+<span class="nc" id="L169">    int middle = props.getMiddlePct();</span>
+<span class="nc" id="L170">    int margin = Const.MARGIN;</span>
+
+    // Stepname line
+<span class="nc" id="L173">    wlStepname = new Label( shell, SWT.RIGHT );</span>
+<span class="nc" id="L174">    wlStepname.setText( BaseMessages.getString( PKG, &quot;System.Label.StepName&quot; ) );</span>
+<span class="nc" id="L175">    props.setLook( wlStepname );</span>
+<span class="nc" id="L176">    fdlStepname = new FormData();</span>
+<span class="nc" id="L177">    fdlStepname.left = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L178">    fdlStepname.top = new FormAttachment( 0, margin );</span>
+<span class="nc" id="L179">    fdlStepname.right = new FormAttachment( middle, -margin );</span>
+<span class="nc" id="L180">    wlStepname.setLayoutData( fdlStepname );</span>
+<span class="nc" id="L181">    wStepname = new Text( shell, SWT.SINGLE | SWT.LEFT | SWT.BORDER );</span>
+<span class="nc" id="L182">    wStepname.setText( stepname );</span>
+<span class="nc" id="L183">    props.setLook( wStepname );</span>
+<span class="nc" id="L184">    wStepname.addModifyListener( lsMod );</span>
+<span class="nc" id="L185">    fdStepname = new FormData();</span>
+<span class="nc" id="L186">    fdStepname.left = new FormAttachment( middle, 0 );</span>
+<span class="nc" id="L187">    fdStepname.top = new FormAttachment( 0, margin );</span>
+<span class="nc" id="L188">    fdStepname.right = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L189">    wStepname.setLayoutData( fdStepname );</span>
+
+<span class="nc" id="L191">    wTabFolder = new CTabFolder( shell, SWT.BORDER );</span>
+<span class="nc" id="L192">    props.setLook( wTabFolder, Props.WIDGET_STYLE_TAB );</span>
+
+    // GENERAL TAB
+<span class="nc" id="L195">    addGeneralTab();</span>
+
+    // Servers TAB
+<span class="nc" id="L198">    addServersTab();</span>
+
+    // Fields TAB
+<span class="nc" id="L201">    addFieldsTab();</span>
+
+    // Settings TAB
+<span class="nc" id="L204">    addSettingsTab();</span>
+
+    // ////////////
+    // BUTTONS //
+    // //////////
+<span class="nc" id="L209">    wOK = new Button( shell, SWT.PUSH );</span>
+<span class="nc" id="L210">    wOK.setText( BaseMessages.getString( PKG, &quot;System.Button.OK&quot; ) );</span>
+<span class="nc" id="L211">    wCancel = new Button( shell, SWT.PUSH );</span>
+<span class="nc" id="L212">    wCancel.setText( BaseMessages.getString( PKG, &quot;System.Button.Cancel&quot; ) );</span>
+
+<span class="nc" id="L214">    setButtonPositions( new Button[]{ wOK, wCancel }, margin, null );</span>
+
+<span class="nc" id="L216">    fdTabFolder = new FormData();</span>
+<span class="nc" id="L217">    fdTabFolder.left = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L218">    fdTabFolder.top = new FormAttachment( wStepname, margin );</span>
+<span class="nc" id="L219">    fdTabFolder.right = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L220">    fdTabFolder.bottom = new FormAttachment( wOK, -margin );</span>
+<span class="nc" id="L221">    wTabFolder.setLayoutData( fdTabFolder );</span>
+
+    // //////////////////
+    // Std Listeners //
+    // ////////////////
+<span class="nc" id="L226">    addStandardListeners();</span>
+
+<span class="nc" id="L228">    wTabFolder.setSelection( 0 );</span>
+
+    // Set the shell size, based upon previous time...
+<span class="nc" id="L231">    setSize();</span>
+<span class="nc" id="L232">    getData( model );</span>
+<span class="nc" id="L233">    model.setChanged( changed );</span>
+
+<span class="nc" id="L235">    shell.open();</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">    while ( !shell.isDisposed() ) {</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">      if ( !display.readAndDispatch() ) {</span>
+<span class="nc" id="L238">        display.sleep();</span>
+      }
+    }
+<span class="nc" id="L241">    return stepname;</span>
+  }
+
+  private void addStandardListeners() {
+    // Add listeners
+<span class="nc" id="L246">    lsOK = new Listener() {</span>
+      public void handleEvent( Event e ) {
+<span class="nc" id="L248">        ok();</span>
+<span class="nc" id="L249">      }</span>
+    };
+
+<span class="nc" id="L252">    lsCancel = new Listener() {</span>
+
+      public void handleEvent( Event e ) {
+<span class="nc" id="L255">        cancel();</span>
+<span class="nc" id="L256">      }</span>
+    };
+
+<span class="nc" id="L259">    lsMod = new ModifyListener() {</span>
+      public void modifyText( ModifyEvent event ) {
+<span class="nc" id="L261">        model.setChanged();</span>
+<span class="nc" id="L262">      }</span>
+    };
+
+<span class="nc" id="L265">    wOK.addListener( SWT.Selection, lsOK );</span>
+<span class="nc" id="L266">    wCancel.addListener( SWT.Selection, lsCancel );</span>
+
+<span class="nc" id="L268">    lsDef = new SelectionAdapter() {</span>
+      public void widgetDefaultSelected( SelectionEvent e ) {
+<span class="nc" id="L270">        ok();</span>
+<span class="nc" id="L271">      }</span>
+    };
+
+<span class="nc" id="L274">    wStepname.addSelectionListener( lsDef );</span>
+
+    // window close
+<span class="nc" id="L277">    shell.addShellListener( new ShellAdapter() {</span>
+
+      public void shellClosed( ShellEvent e ) {
+<span class="nc" id="L280">        cancel();</span>
+<span class="nc" id="L281">      }</span>
+    } );
+<span class="nc" id="L283">  }</span>
+
+  /**
+   */
+  private void addGeneralTab() {
+<span class="nc" id="L288">    wGeneralTab = new CTabItem( wTabFolder, SWT.NONE );</span>
+<span class="nc" id="L289">    wGeneralTab.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.General.Tab&quot; ) );</span>
+
+<span class="nc" id="L291">    wGeneralComp = new Composite( wTabFolder, SWT.NONE );</span>
+<span class="nc" id="L292">    props.setLook( wGeneralComp );</span>
+
+<span class="nc" id="L294">    FormLayout generalLayout = new FormLayout();</span>
+<span class="nc" id="L295">    generalLayout.marginWidth = 3;</span>
+<span class="nc" id="L296">    generalLayout.marginHeight = 3;</span>
+<span class="nc" id="L297">    wGeneralComp.setLayout( generalLayout );</span>
+
+    // Index GROUP
+<span class="nc" id="L300">    fillIndexGroup( wGeneralComp );</span>
+
+    // Options GROUP
+<span class="nc" id="L303">    fillOptionsGroup( wGeneralComp );</span>
+
+<span class="nc" id="L305">    fdGeneralComp = new FormData();</span>
+<span class="nc" id="L306">    fdGeneralComp.left = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L307">    fdGeneralComp.top = new FormAttachment( wStepname, Const.MARGIN );</span>
+<span class="nc" id="L308">    fdGeneralComp.right = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L309">    fdGeneralComp.bottom = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L310">    wGeneralComp.setLayoutData( fdGeneralComp );</span>
+
+<span class="nc" id="L312">    wGeneralComp.layout();</span>
+<span class="nc" id="L313">    wGeneralTab.setControl( wGeneralComp );</span>
+<span class="nc" id="L314">  }</span>
+
+  private void fillIndexGroup( Composite parentTab ) {
+<span class="nc" id="L317">    wIndexGroup = new Group( parentTab, SWT.SHADOW_NONE );</span>
+<span class="nc" id="L318">    props.setLook( wIndexGroup );</span>
+<span class="nc" id="L319">    wIndexGroup.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.IndexGroup.Label&quot; ) );</span>
+
+<span class="nc" id="L321">    FormLayout indexGroupLayout = new FormLayout();</span>
+<span class="nc" id="L322">    indexGroupLayout.marginWidth = 10;</span>
+<span class="nc" id="L323">    indexGroupLayout.marginHeight = 10;</span>
+<span class="nc" id="L324">    wIndexGroup.setLayout( indexGroupLayout );</span>
+
+    // Index
+<span class="nc" id="L327">    wIndex =</span>
+      new LabelTextVar( transMeta, wIndexGroup,
+<span class="nc" id="L329">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Index.Label&quot; ),</span>
+<span class="nc" id="L330">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Index.Tooltip&quot; ) );</span>
+<span class="nc" id="L331">    wIndex.addModifyListener( lsMod );</span>
+
+    // Type
+<span class="nc" id="L334">    wType =</span>
+      new LabelTextVar( transMeta, wIndexGroup,
+<span class="nc" id="L336">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Type.Label&quot; ),</span>
+<span class="nc" id="L337">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Type.Tooltip&quot; ) );</span>
+<span class="nc" id="L338">    wType.addModifyListener( lsMod );</span>
+
+<span class="nc" id="L340">    Control[] connectionControls = new Control[]{ wIndex, wType };</span>
+<span class="nc" id="L341">    placeControls( wIndexGroup, connectionControls );</span>
+
+<span class="nc" id="L343">    BaseStepDialog.positionBottomButtons( wIndexGroup, new Button[]{ wTest }, Const.MARGIN, wType );</span>
+
+<span class="nc" id="L345">    fdIndexGroup = new FormData();</span>
+<span class="nc" id="L346">    fdIndexGroup.left = new FormAttachment( 0, Const.MARGIN );</span>
+<span class="nc" id="L347">    fdIndexGroup.top = new FormAttachment( wStepname, Const.MARGIN );</span>
+<span class="nc" id="L348">    fdIndexGroup.right = new FormAttachment( 100, -Const.MARGIN );</span>
+<span class="nc" id="L349">    wIndexGroup.setLayoutData( fdIndexGroup );</span>
+<span class="nc" id="L350">  }</span>
+
+  private void addServersTab() {
+<span class="nc" id="L353">    wServersTab = new CTabItem( wTabFolder, SWT.NONE );</span>
+<span class="nc" id="L354">    wServersTab.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.ServersTab.TabTitle&quot; ) );</span>
+
+<span class="nc" id="L356">    FormLayout serversLayout = new FormLayout();</span>
+<span class="nc" id="L357">    serversLayout.marginWidth = Const.FORM_MARGIN;</span>
+<span class="nc" id="L358">    serversLayout.marginHeight = Const.FORM_MARGIN;</span>
+
+<span class="nc" id="L360">    Composite wServersComp = new Composite( wTabFolder, SWT.NONE );</span>
+<span class="nc" id="L361">    wServersComp.setLayout( serversLayout );</span>
+<span class="nc" id="L362">    props.setLook( wServersComp );</span>
+
+    // Test button
+<span class="nc" id="L365">    wTestCl = new Button( wServersComp, SWT.PUSH );</span>
+<span class="nc" id="L366">    wTestCl.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.TestCluster.Label&quot; ) );</span>
+<span class="nc" id="L367">    wTestCl.setToolTipText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.TestCluster.Tooltip&quot; ) );</span>
+
+<span class="nc" id="L369">    wTestCl.addListener( SWT.Selection, new Listener() {</span>
+      public void handleEvent( Event arg0 ) {
+<span class="nc" id="L371">        test();</span>
+<span class="nc" id="L372">      }</span>
+    } );
+
+<span class="nc" id="L375">    setButtonPositions( new Button[]{ wTestCl }, Const.MARGIN, null );</span>
+
+<span class="nc" id="L377">    ColumnInfo[] columnsMeta = new ColumnInfo[2];</span>
+<span class="nc" id="L378">    columnsMeta[0] =</span>
+      new ColumnInfo(
+<span class="nc" id="L380">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.ServersTab.Address.Column&quot; ),</span>
+        ColumnInfo.COLUMN_TYPE_TEXT, false );
+<span class="nc" id="L382">    columnsMeta[1] =</span>
+      new ColumnInfo(
+<span class="nc" id="L384">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.ServersTab.Port.Column&quot; ),</span>
+        ColumnInfo.COLUMN_TYPE_TEXT, true );
+
+<span class="nc" id="L387">    wServers =</span>
+      new TableView(
+        transMeta, wServersComp, SWT.BORDER | SWT.FULL_SELECTION | SWT.MULTI, columnsMeta, 1, lsMod, props );
+<span class="nc" id="L390">    FormData fdServers = new FormData();</span>
+<span class="nc" id="L391">    fdServers.left = new FormAttachment( 0, Const.MARGIN );</span>
+<span class="nc" id="L392">    fdServers.top = new FormAttachment( 0, Const.MARGIN );</span>
+<span class="nc" id="L393">    fdServers.right = new FormAttachment( 100, -Const.MARGIN );</span>
+<span class="nc" id="L394">    fdServers.bottom = new FormAttachment( wTestCl, -Const.MARGIN );</span>
+<span class="nc" id="L395">    wServers.setLayoutData( fdServers );</span>
+
+<span class="nc" id="L397">    FormData fdServersComp = new FormData();</span>
+<span class="nc" id="L398">    fdServersComp.left = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L399">    fdServersComp.top = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L400">    fdServersComp.right = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L401">    fdServersComp.bottom = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L402">    wServersComp.setLayoutData( fdServersComp );</span>
+<span class="nc" id="L403">    wServersComp.layout();</span>
+<span class="nc" id="L404">    wServersTab.setControl( wServersComp );</span>
+<span class="nc" id="L405">  }</span>
+
+  private void addSettingsTab() {
+<span class="nc" id="L408">    wSettingsTab = new CTabItem( wTabFolder, SWT.NONE );</span>
+<span class="nc" id="L409">    wSettingsTab.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.SettingsTab.TabTitle&quot; ) );</span>
+
+<span class="nc" id="L411">    FormLayout serversLayout = new FormLayout();</span>
+<span class="nc" id="L412">    serversLayout.marginWidth = Const.FORM_MARGIN;</span>
+<span class="nc" id="L413">    serversLayout.marginHeight = Const.FORM_MARGIN;</span>
+
+<span class="nc" id="L415">    Composite wSettingsComp = new Composite( wTabFolder, SWT.NONE );</span>
+<span class="nc" id="L416">    wSettingsComp.setLayout( serversLayout );</span>
+<span class="nc" id="L417">    props.setLook( wSettingsComp );</span>
+
+<span class="nc" id="L419">    ColumnInfo[] columnsMeta = new ColumnInfo[2];</span>
+<span class="nc" id="L420">    columnsMeta[0] =</span>
+      new ColumnInfo(
+<span class="nc" id="L422">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.SettingsTab.Property.Column&quot; ),</span>
+        ColumnInfo.COLUMN_TYPE_TEXT, false );
+<span class="nc" id="L424">    columnsMeta[1] =</span>
+      new ColumnInfo(
+<span class="nc" id="L426">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.SettingsTab.Value.Column&quot; ),</span>
+        ColumnInfo.COLUMN_TYPE_TEXT, false );
+
+<span class="nc" id="L429">    wSettings =</span>
+      new TableView(
+        transMeta, wSettingsComp, SWT.BORDER | SWT.FULL_SELECTION | SWT.MULTI, columnsMeta, 1, lsMod, props );
+<span class="nc" id="L432">    FormData fdServers = new FormData();</span>
+<span class="nc" id="L433">    fdServers.left = new FormAttachment( 0, Const.MARGIN );</span>
+<span class="nc" id="L434">    fdServers.top = new FormAttachment( 0, Const.MARGIN );</span>
+<span class="nc" id="L435">    fdServers.right = new FormAttachment( 100, -Const.MARGIN );</span>
+<span class="nc" id="L436">    fdServers.bottom = new FormAttachment( 100, -Const.MARGIN );</span>
+<span class="nc" id="L437">    wSettings.setLayoutData( fdServers );</span>
+
+<span class="nc" id="L439">    FormData fdServersComp = new FormData();</span>
+<span class="nc" id="L440">    fdServersComp.left = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L441">    fdServersComp.top = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L442">    fdServersComp.right = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L443">    fdServersComp.bottom = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L444">    wSettingsComp.setLayoutData( fdServersComp );</span>
+
+<span class="nc" id="L446">    wSettingsComp.layout();</span>
+<span class="nc" id="L447">    wSettingsTab.setControl( wSettingsComp );</span>
+<span class="nc" id="L448">  }</span>
+
+  private void addFieldsTab() {
+
+<span class="nc" id="L452">    wFieldsTab = new CTabItem( wTabFolder, SWT.NONE );</span>
+<span class="nc" id="L453">    wFieldsTab.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.FieldsTab.TabTitle&quot; ) );</span>
+
+<span class="nc" id="L455">    FormLayout fieldsLayout = new FormLayout();</span>
+<span class="nc" id="L456">    fieldsLayout.marginWidth = Const.FORM_MARGIN;</span>
+<span class="nc" id="L457">    fieldsLayout.marginHeight = Const.FORM_MARGIN;</span>
+
+<span class="nc" id="L459">    Composite wFieldsComp = new Composite( wTabFolder, SWT.NONE );</span>
+<span class="nc" id="L460">    wFieldsComp.setLayout( fieldsLayout );</span>
+<span class="nc" id="L461">    props.setLook( wFieldsComp );</span>
+
+<span class="nc" id="L463">    wGet = new Button( wFieldsComp, SWT.PUSH );</span>
+<span class="nc" id="L464">    wGet.setText( BaseMessages.getString( PKG, &quot;System.Button.GetFields&quot; ) );</span>
+<span class="nc" id="L465">    wGet.setToolTipText( BaseMessages.getString( PKG, &quot;System.Tooltip.GetFields&quot; ) );</span>
+
+<span class="nc" id="L467">    lsGet = new Listener() {</span>
+      public void handleEvent( Event e ) {
+<span class="nc" id="L469">        getPreviousFields( wFields );</span>
+<span class="nc" id="L470">      }</span>
+    };
+<span class="nc" id="L472">    wGet.addListener( SWT.Selection, lsGet );</span>
+
+<span class="nc" id="L474">    setButtonPositions( new Button[]{ wGet }, Const.MARGIN, null );</span>
+
+<span class="nc" id="L476">    final int fieldsRowCount = model.getFields().size();</span>
+
+<span class="nc bnc" id="L478" title="All 2 branches missed.">    String[] names = this.fieldNames != null ? this.fieldNames : new String[]{ &quot;&quot; };</span>
+<span class="nc" id="L479">    ColumnInfo[] columnsMeta = new ColumnInfo[2];</span>
+<span class="nc" id="L480">    columnsMeta[0] =</span>
+      new ColumnInfo(
+<span class="nc" id="L482">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.NameColumn.Column&quot; ),</span>
+        ColumnInfo.COLUMN_TYPE_CCOMBO, names, false );
+<span class="nc" id="L484">    columnsMeta[1] =</span>
+      new ColumnInfo(
+<span class="nc" id="L486">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.TargetNameColumn.Column&quot; ),</span>
+        ColumnInfo.COLUMN_TYPE_TEXT, false );
+
+<span class="nc" id="L489">    wFields =</span>
+      new TableView(
+        transMeta, wFieldsComp, SWT.BORDER | SWT.FULL_SELECTION | SWT.MULTI, columnsMeta, fieldsRowCount,
+        lsMod, props );
+
+<span class="nc" id="L494">    FormData fdFields = new FormData();</span>
+<span class="nc" id="L495">    fdFields.left = new FormAttachment( 0, Const.MARGIN );</span>
+<span class="nc" id="L496">    fdFields.top = new FormAttachment( 0, Const.MARGIN );</span>
+<span class="nc" id="L497">    fdFields.right = new FormAttachment( 100, -Const.MARGIN );</span>
+<span class="nc" id="L498">    fdFields.bottom = new FormAttachment( wGet, -Const.MARGIN );</span>
+<span class="nc" id="L499">    wFields.setLayoutData( fdFields );</span>
+
+<span class="nc" id="L501">    FormData fdFieldsComp = new FormData();</span>
+<span class="nc" id="L502">    fdFieldsComp.left = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L503">    fdFieldsComp.top = new FormAttachment( 0, 0 );</span>
+<span class="nc" id="L504">    fdFieldsComp.right = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L505">    fdFieldsComp.bottom = new FormAttachment( 100, 0 );</span>
+<span class="nc" id="L506">    wFieldsComp.setLayoutData( fdFieldsComp );</span>
+
+<span class="nc" id="L508">    wFieldsComp.layout();</span>
+<span class="nc" id="L509">    wFieldsTab.setControl( wFieldsComp );</span>
+<span class="nc" id="L510">  }</span>
+
+  private void fillOptionsGroup( Composite parentTab ) {
+
+<span class="nc" id="L514">    int margin = Const.MARGIN;</span>
+
+<span class="nc" id="L516">    wSettingsGroup = new Group( parentTab, SWT.SHADOW_NONE );</span>
+<span class="nc" id="L517">    props.setLook( wSettingsGroup );</span>
+<span class="nc" id="L518">    wSettingsGroup.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.SettingsGroup.Label&quot; ) );</span>
+
+<span class="nc" id="L520">    FormLayout settingGroupLayout = new FormLayout();</span>
+<span class="nc" id="L521">    settingGroupLayout.marginWidth = 10;</span>
+<span class="nc" id="L522">    settingGroupLayout.marginHeight = 10;</span>
+<span class="nc" id="L523">    wSettingsGroup.setLayout( settingGroupLayout );</span>
+
+    // Timeout
+<span class="nc" id="L526">    wTimeOut =</span>
+      new LabelTimeComposite( wSettingsGroup,
+<span class="nc" id="L528">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.TimeOut.Label&quot; ),</span>
+<span class="nc" id="L529">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.TimeOut.Tooltip&quot; ) );</span>
+<span class="nc" id="L530">    props.setLook( wTimeOut );</span>
+<span class="nc" id="L531">    wTimeOut.addModifyListener( lsMod );</span>
+
+    // BatchSize
+<span class="nc" id="L534">    wlBatchSize = new Label( wSettingsGroup, SWT.RIGHT );</span>
+<span class="nc" id="L535">    wlBatchSize.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.BatchSize.Label&quot; ) );</span>
+<span class="nc" id="L536">    props.setLook( wlBatchSize );</span>
+
+<span class="nc" id="L538">    wBatchSize = new TextVar( transMeta, wSettingsGroup, SWT.SINGLE | SWT.LEFT | SWT.BORDER );</span>
+
+<span class="nc" id="L540">    props.setLook( wBatchSize );</span>
+<span class="nc" id="L541">    wBatchSize.addModifyListener( lsMod );</span>
+
+    // Stop on error
+<span class="nc" id="L544">    wlStopOnError = new Label( wSettingsGroup, SWT.RIGHT );</span>
+<span class="nc" id="L545">    wlStopOnError.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.StopOnError.Label&quot; ) );</span>
+
+<span class="nc" id="L547">    wStopOnError = new Button( wSettingsGroup, SWT.CHECK | SWT.RIGHT );</span>
+<span class="nc" id="L548">    wStopOnError.setToolTipText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.StopOnError.Tooltip&quot; ) );</span>
+
+    // ID input
+<span class="nc" id="L551">    wIdInField =</span>
+      new LabelComboVar( transMeta, wSettingsGroup,
+<span class="nc" id="L553">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.IdField.Label&quot; ),</span>
+<span class="nc" id="L554">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.IdField.Tooltip&quot; ) );</span>
+<span class="nc" id="L555">    props.setLook( wIdInField );</span>
+<span class="nc" id="L556">    wIdInField.getComboWidget().setEditable( true );</span>
+<span class="nc" id="L557">    wIdInField.addModifyListener( lsMod );</span>
+<span class="nc" id="L558">    wIdInField.addFocusListener( new FocusListener() {</span>
+      public void focusLost( org.eclipse.swt.events.FocusEvent e ) {
+<span class="nc" id="L560">      }</span>
+
+      public void focusGained( org.eclipse.swt.events.FocusEvent e ) {
+<span class="nc" id="L563">        getPreviousFields( wIdInField );</span>
+<span class="nc" id="L564">      }</span>
+    } );
+<span class="nc" id="L566">    getPreviousFields( wIdInField );</span>
+
+<span class="nc" id="L568">    wlIsOverwrite = new Label( wSettingsGroup, SWT.RIGHT );</span>
+<span class="nc" id="L569">    wlIsOverwrite.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Overwrite.Label&quot; ) );</span>
+
+<span class="nc" id="L571">    wIsOverwrite = new Button( wSettingsGroup, SWT.CHECK | SWT.RIGHT );</span>
+<span class="nc" id="L572">    wIsOverwrite.setToolTipText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Overwrite.Tooltip&quot; ) );</span>
+
+    // Output rows
+<span class="nc" id="L575">    wlUseOutput = new Label( wSettingsGroup, SWT.RIGHT );</span>
+<span class="nc" id="L576">    wlUseOutput.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.UseOutput.Label&quot; ) );</span>
+
+<span class="nc" id="L578">    wUseOutput = new Button( wSettingsGroup, SWT.CHECK | SWT.RIGHT );</span>
+<span class="nc" id="L579">    wUseOutput.setToolTipText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.UseOutput.Tooltip&quot; ) );</span>
+
+<span class="nc" id="L581">    wUseOutput.addSelectionListener( new SelectionListener() {</span>
+
+      public void widgetDefaultSelected( SelectionEvent arg0 ) {
+<span class="nc" id="L584">        widgetSelected( arg0 );</span>
+<span class="nc" id="L585">      }</span>
+
+      public void widgetSelected( SelectionEvent arg0 ) {
+<span class="nc" id="L588">        wIdOutField.setEnabled( wUseOutput.getSelection() );</span>
+<span class="nc" id="L589">      }</span>
+
+    } );
+
+    // ID out field
+<span class="nc" id="L594">    wIdOutField =</span>
+      new LabelTextVar( transMeta, wSettingsGroup,
+<span class="nc" id="L596">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.IdOutField.Label&quot; ),</span>
+<span class="nc" id="L597">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.IdOutField.Tooltip&quot; ) );</span>
+<span class="nc" id="L598">    props.setLook( wIdOutField );</span>
+<span class="nc" id="L599">    wIdOutField.setEnabled( wUseOutput.getSelection() );</span>
+<span class="nc" id="L600">    wIdOutField.addModifyListener( lsMod );</span>
+
+    // use json
+<span class="nc" id="L603">    wlIsJson = new Label( wSettingsGroup, SWT.RIGHT );</span>
+<span class="nc" id="L604">    wlIsJson.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.IsJson.Label&quot; ) );</span>
+
+<span class="nc" id="L606">    wIsJson = new Button( wSettingsGroup, SWT.CHECK | SWT.RIGHT );</span>
+<span class="nc" id="L607">    wIsJson.setToolTipText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.IsJson.Tooltip&quot; ) );</span>
+
+<span class="nc" id="L609">    wIsJson.addSelectionListener( new SelectionListener() {</span>
+      public void widgetDefaultSelected( SelectionEvent arg0 ) {
+<span class="nc" id="L611">        widgetSelected( arg0 );</span>
+<span class="nc" id="L612">      }</span>
+
+      public void widgetSelected( SelectionEvent arg0 ) {
+<span class="nc" id="L615">        wJsonField.setEnabled( wIsJson.getSelection() );</span>
+<span class="nc bnc" id="L616" title="All 2 branches missed.">        wFields.setEnabled( !wIsJson.getSelection() );</span>
+<span class="nc bnc" id="L617" title="All 2 branches missed.">        wFields.setVisible( !wIsJson.getSelection() );</span>
+<span class="nc bnc" id="L618" title="All 2 branches missed.">        wGet.setEnabled( !wIsJson.getSelection() );</span>
+<span class="nc" id="L619">      }</span>
+    } );
+
+    // Json field
+<span class="nc" id="L623">    wJsonField =</span>
+      new LabelComboVar( transMeta, wSettingsGroup,
+<span class="nc" id="L625">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.JsonField.Label&quot; ),</span>
+<span class="nc" id="L626">        BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.JsonField.Tooltip&quot; ) );</span>
+<span class="nc" id="L627">    wJsonField.getComboWidget().setEditable( true );</span>
+<span class="nc" id="L628">    props.setLook( wJsonField );</span>
+<span class="nc" id="L629">    wJsonField.addModifyListener( lsMod );</span>
+<span class="nc" id="L630">    wJsonField.addFocusListener( new FocusListener() {</span>
+      public void focusLost( org.eclipse.swt.events.FocusEvent e ) {
+<span class="nc" id="L632">      }</span>
+
+      public void focusGained( org.eclipse.swt.events.FocusEvent e ) {
+<span class="nc" id="L635">        getPreviousFields( wJsonField );</span>
+<span class="nc" id="L636">      }</span>
+    } );
+<span class="nc" id="L638">    getPreviousFields( wJsonField );</span>
+<span class="nc" id="L639">    wJsonField.setEnabled( wIsJson.getSelection() );</span>
+
+<span class="nc" id="L641">    Control[] settingsControls =</span>
+      new Control[]{
+        wlBatchSize, wBatchSize, wlStopOnError, wStopOnError, wTimeOut, wIdInField, wlIsOverwrite,
+        wIsOverwrite, wlUseOutput, wUseOutput, wIdOutField, wlIsJson, wIsJson, wJsonField };
+<span class="nc" id="L645">    placeControls( wSettingsGroup, settingsControls );</span>
+
+<span class="nc" id="L647">    fdSettingsGroup = new FormData();</span>
+<span class="nc" id="L648">    fdSettingsGroup.left = new FormAttachment( 0, margin );</span>
+<span class="nc" id="L649">    fdSettingsGroup.top = new FormAttachment( wIndexGroup, margin );</span>
+<span class="nc" id="L650">    fdSettingsGroup.right = new FormAttachment( 100, -margin );</span>
+<span class="nc" id="L651">    wSettingsGroup.setLayoutData( fdSettingsGroup );</span>
+<span class="nc" id="L652">  }</span>
+
+  private void getPreviousFields( LabelComboVar combo ) {
+<span class="nc" id="L655">    String value = combo.getText();</span>
+<span class="nc" id="L656">    combo.removeAll();</span>
+<span class="nc" id="L657">    combo.setItems( getInputFieldNames() );</span>
+<span class="nc bnc" id="L658" title="All 2 branches missed.">    if ( value != null ) {</span>
+<span class="nc" id="L659">      combo.setText( value );</span>
+    }
+<span class="nc" id="L661">  }</span>
+
+  private String[] getInputFieldNames() {
+<span class="nc bnc" id="L664" title="All 2 branches missed.">    if ( this.fieldNames == null ) {</span>
+      try {
+<span class="nc" id="L666">        RowMetaInterface r = transMeta.getPrevStepFields( stepname );</span>
+<span class="nc bnc" id="L667" title="All 2 branches missed.">        if ( r != null ) {</span>
+<span class="nc" id="L668">          fieldNames = r.getFieldNames();</span>
+        }
+<span class="nc" id="L670">      } catch ( KettleException ke ) {</span>
+<span class="nc" id="L671">        new ErrorDialog( shell,</span>
+<span class="nc" id="L672">          BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.FailedToGetFields.DialogTitle&quot; ),</span>
+<span class="nc" id="L673">          BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.FailedToGetFields.DialogMessage&quot; ), ke );</span>
+<span class="nc" id="L674">        return new String[0];</span>
+<span class="nc" id="L675">      }</span>
+    }
+
+<span class="nc" id="L678">    return fieldNames;</span>
+  }
+
+  private void getPreviousFields( TableView table ) {
+    try {
+<span class="nc" id="L683">      RowMetaInterface r = transMeta.getPrevStepFields( stepname );</span>
+<span class="nc bnc" id="L684" title="All 2 branches missed.">      if ( r != null ) {</span>
+<span class="nc" id="L685">        BaseStepDialog.getFieldsFromPrevious( r, table, 1, new int[]{ 1, 2 }, null, 0, 0, null );</span>
+      }
+<span class="nc" id="L687">    } catch ( KettleException ke ) {</span>
+<span class="nc" id="L688">      new ErrorDialog( shell, BaseMessages.getString( PKG, &quot;System.Dialog.GetFieldsFailed.Title&quot; ), BaseMessages</span>
+<span class="nc" id="L689">        .getString( PKG, &quot;System.Dialog.GetFieldsFailed.Message&quot; ), ke );</span>
+<span class="nc" id="L690">    }</span>
+<span class="nc" id="L691">  }</span>
+
+  private void placeControls( Group group, Control[] controls ) {
+
+<span class="nc" id="L695">    Control previousAbove = group;</span>
+<span class="nc" id="L696">    Control previousLeft = group;</span>
+
+<span class="nc bnc" id="L698" title="All 2 branches missed.">    for ( Control control : controls ) {</span>
+<span class="nc bnc" id="L699" title="All 2 branches missed.">      if ( control instanceof Label ) {</span>
+<span class="nc" id="L700">        addLabelAfter( control, previousAbove );</span>
+<span class="nc" id="L701">        previousLeft = control;</span>
+      } else {
+<span class="nc" id="L703">        addWidgetAfter( control, previousAbove, previousLeft );</span>
+<span class="nc" id="L704">        previousAbove = control;</span>
+<span class="nc" id="L705">        previousLeft = group;</span>
+      }
+    }
+
+<span class="nc" id="L709">  }</span>
+
+  private void addWidgetAfter( Control widget, Control widgetAbove, Control widgetLeft ) {
+<span class="nc" id="L712">    props.setLook( widget );</span>
+<span class="nc" id="L713">    FormData fData = new FormData();</span>
+<span class="nc" id="L714">    fData.left = new FormAttachment( widgetLeft, Const.MARGIN );</span>
+<span class="nc" id="L715">    fData.top = new FormAttachment( widgetAbove, Const.MARGIN );</span>
+<span class="nc" id="L716">    fData.right = new FormAttachment( 100, -Const.MARGIN );</span>
+<span class="nc" id="L717">    widget.setLayoutData( fData );</span>
+<span class="nc" id="L718">  }</span>
+
+  private void addLabelAfter( Control widget, Control widgetAbove ) {
+<span class="nc" id="L721">    props.setLook( widget );</span>
+<span class="nc" id="L722">    FormData fData = new FormData();</span>
+<span class="nc" id="L723">    fData.top = new FormAttachment( widgetAbove, Const.MARGIN );</span>
+<span class="nc" id="L724">    fData.right = new FormAttachment( Const.MIDDLE_PCT, -Const.MARGIN );</span>
+<span class="nc" id="L725">    widget.setLayoutData( fData );</span>
+<span class="nc" id="L726">  }</span>
+
+  /**
+   * Read the data from the ElasticSearchBulkMeta object and show it in this dialog.
+   *
+   * @param in The ElasticSearchBulkMeta object to obtain the data from.
+   */
+  public void getData( ElasticSearchBulkMeta in ) {
+<span class="nc" id="L734">    wIndex.setText( Const.NVL( in.getIndex(), &quot;&quot; ) );</span>
+<span class="nc" id="L735">    wType.setText( Const.NVL( in.getType(), &quot;&quot; ) );</span>
+
+<span class="nc" id="L737">    wBatchSize.setText( Const.NVL( in.getBatchSize(), &quot;&quot; + ElasticSearchBulkMeta.DEFAULT_BATCH_SIZE ) );</span>
+
+<span class="nc" id="L739">    wStopOnError.setSelection( in.isStopOnError() );</span>
+
+<span class="nc" id="L741">    wTimeOut.setText( Const.NVL( in.getTimeOut(), &quot;&quot; ) );</span>
+<span class="nc" id="L742">    wTimeOut.setTimeUnit( in.getTimeoutUnit() );</span>
+
+<span class="nc" id="L744">    wIdInField.setText( Const.NVL( in.getIdInField(), &quot;&quot; ) );</span>
+
+<span class="nc" id="L746">    wIsOverwrite.setSelection( in.isOverWriteIfSameId() );</span>
+
+<span class="nc" id="L748">    wIsJson.setSelection( in.isJsonInsert() );</span>
+
+<span class="nc" id="L750">    wJsonField.setText( Const.NVL( in.getJsonField(), &quot;&quot; ) );</span>
+<span class="nc" id="L751">    wJsonField.setEnabled( wIsJson.getSelection() ); // listener not working here</span>
+
+<span class="nc" id="L753">    wUseOutput.setSelection( in.isUseOutput() );</span>
+
+<span class="nc" id="L755">    wIdOutField.setText( Const.NVL( in.getIdOutField(), &quot;&quot; ) );</span>
+<span class="nc" id="L756">    wIdOutField.setEnabled( wUseOutput.getSelection() ); // listener not working here</span>
+
+    // Fields
+<span class="nc" id="L759">    mapToTableView( model.getFieldsMap(), wFields );</span>
+
+    // Servers
+<span class="nc bnc" id="L762" title="All 2 branches missed.">    for ( ElasticSearchBulkMeta.Server server : model.getServers() ) {</span>
+<span class="nc" id="L763">      wServers.add( server.address, &quot;&quot; + server.port );</span>
+<span class="nc" id="L764">    }</span>
+<span class="nc" id="L765">    wServers.removeEmptyRows();</span>
+<span class="nc" id="L766">    wServers.setRowNums();</span>
+
+    // Settings
+<span class="nc" id="L769">    mapToTableView( model.getSettingsMap(), wSettings );</span>
+
+<span class="nc" id="L771">    wStepname.selectAll();</span>
+<span class="nc" id="L772">    wStepname.setFocus();</span>
+<span class="nc" id="L773">  }</span>
+
+  private void mapToTableView( Map&lt;String, String&gt; map, TableView table ) {
+<span class="nc bnc" id="L776" title="All 2 branches missed.">    for ( String key : map.keySet() ) {</span>
+<span class="nc" id="L777">      table.add( key, map.get( key ) );</span>
+<span class="nc" id="L778">    }</span>
+<span class="nc" id="L779">    table.removeEmptyRows();</span>
+<span class="nc" id="L780">    table.setRowNums();</span>
+<span class="nc" id="L781">  }</span>
+
+  private void cancel() {
+<span class="nc" id="L784">    stepname = null;</span>
+<span class="nc" id="L785">    model.setChanged( changed );</span>
+<span class="nc" id="L786">    dispose();</span>
+<span class="nc" id="L787">  }</span>
+
+  private void ok() {
+<span class="nc" id="L790">    toModel( model );</span>
+<span class="nc" id="L791">    dispose();</span>
+<span class="nc" id="L792">  }</span>
+
+  private void toModel( ElasticSearchBulkMeta in ) { // copy info to ElasticSearchBulkMeta
+<span class="nc" id="L795">    stepname = wStepname.getText();</span>
+
+<span class="nc" id="L797">    in.setType( wType.getText() );</span>
+<span class="nc" id="L798">    in.setIndex( wIndex.getText() );</span>
+
+<span class="nc" id="L800">    in.setBatchSize( wBatchSize.getText() );</span>
+<span class="nc" id="L801">    in.setTimeOut( Const.NVL( wTimeOut.getText(), null ) );</span>
+<span class="nc" id="L802">    in.setTimeoutUnit( wTimeOut.getTimeUnit() );</span>
+
+<span class="nc" id="L804">    in.setIdInField( wIdInField.getText() );</span>
+    //in.setOverWriteIfSameId( StringUtils.isNotBlank( wIdInField.getText() ) &amp;&amp; wIsOverwrite.getSelection() );
+<span class="nc" id="L806">    in.setStopOnError( wStopOnError.getSelection() );</span>
+<span class="nc" id="L807">    in.setJsonInsert( wIsJson.getSelection() );</span>
+<span class="nc bnc" id="L808" title="All 2 branches missed.">    in.setJsonField( wIsJson.getSelection() ? wJsonField.getText() : null );</span>
+<span class="nc" id="L809">    in.setIdOutField( wIdOutField.getText() );</span>
+<span class="nc" id="L810">    in.setUseOutput( wUseOutput.getSelection() );</span>
+
+<span class="nc" id="L812">    in.clearFields();</span>
+<span class="nc bnc" id="L813" title="All 2 branches missed.">    if ( !wIsJson.getSelection() ) {</span>
+<span class="nc bnc" id="L814" title="All 2 branches missed.">      for ( int i = 0; i &lt; wFields.getItemCount(); i++ ) {</span>
+<span class="nc" id="L815">        String[] row = wFields.getItem( i );</span>
+<span class="nc bnc" id="L816" title="All 2 branches missed.">        if ( StringUtils.isNotBlank( row[0] ) ) {</span>
+<span class="nc" id="L817">          in.addField( row[0], row[1] );</span>
+        }
+      }
+    }
+
+<span class="nc" id="L822">    in.clearServers();</span>
+<span class="nc bnc" id="L823" title="All 2 branches missed.">    for ( int i = 0; i &lt; wServers.getItemCount(); i++ ) {</span>
+<span class="nc" id="L824">      String[] row = wServers.getItem( i );</span>
+<span class="nc bnc" id="L825" title="All 2 branches missed.">      if ( StringUtils.isNotBlank( row[0] ) ) {</span>
+        try {
+<span class="nc" id="L827">          in.addServer( row[0], Integer.parseInt( row[1] ) );</span>
+<span class="nc" id="L828">        } catch ( NumberFormatException nfe ) {</span>
+<span class="nc" id="L829">          in.addServer( row[0], ElasticSearchBulkMeta.DEFAULT_PORT );</span>
+<span class="nc" id="L830">        }</span>
+      }
+    }
+
+<span class="nc" id="L834">    in.clearSettings();</span>
+<span class="nc bnc" id="L835" title="All 2 branches missed.">    for ( int i = 0; i &lt; wSettings.getItemCount(); i++ ) {</span>
+<span class="nc" id="L836">      String[] row = wSettings.getItem( i );</span>
+<span class="nc" id="L837">      in.addSetting( row[0], row[1] );</span>
+    }
+<span class="nc" id="L839">  }</span>
+
+
+  private void test( ) {
+
+    // Save off the thread's context class loader to restore after the test
+<span class="nc" id="L845">    ClassLoader originalClassloader = Thread.currentThread().getContextClassLoader();</span>
+    // Now ensure that the thread's context class loader is the plugin's classloader
+<span class="nc" id="L847">    Thread.currentThread().setContextClassLoader( this.getClass().getClassLoader() );</span>
+<span class="nc" id="L848">    RestHighLevelClient client = null;</span>
+    try {
+<span class="nc" id="L850">      ElasticSearchBulkMeta tempMeta = new ElasticSearchBulkMeta();</span>
+<span class="nc" id="L851">      toModel( tempMeta );</span>
+<span class="nc bnc" id="L852" title="All 2 branches missed.">      if ( !tempMeta.getServers().isEmpty() ) {</span>
+<span class="nc" id="L853">        List&lt;ElasticSearchBulkMeta.Server&gt; servers = tempMeta.getServers();</span>
+<span class="nc" id="L854">        HttpHost[] hosts = new HttpHost[servers.size()];</span>
+<span class="nc bnc" id="L855" title="All 2 branches missed.">        for ( int i=0; i&lt;hosts.length; i++ ) {</span>
+          //showMessage(BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Test.TestOKTitle&quot; ));
+<span class="nc" id="L857">          hosts[i] = new HttpHost(servers.get(i).getAddr().getHostName(), servers.get(i).getAddr().getPort());</span>
+        }
+<span class="nc" id="L859">        client = new RestHighLevelClient(RestClient.builder(hosts));</span>
+      }
+<span class="nc" id="L861">      boolean ping = client.ping();</span>
+<span class="nc bnc" id="L862" title="All 2 branches missed.">      if(ping){</span>
+<span class="nc" id="L863">        showMessage(BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Test.TestOKTitle&quot; ));</span>
+      }
+
+<span class="nc" id="L866">      client.close();</span>
+<span class="nc" id="L867">    } catch ( IOException e ) {</span>
+<span class="nc" id="L868">      showError( e.getLocalizedMessage() );</span>
+<span class="nc" id="L869">    }</span>
+    // Restore the original classloader
+<span class="nc" id="L871">    Thread.currentThread().setContextClassLoader( originalClassloader );</span>
+<span class="nc" id="L872">  }</span>
+
+  private void showError( String message ) {
+<span class="nc" id="L875">    MessageBox mb = new MessageBox( shell, SWT.OK | SWT.ICON_ERROR );</span>
+<span class="nc" id="L876">    mb.setMessage( message );</span>
+<span class="nc" id="L877">    mb.setText( BaseMessages.getString( PKG, &quot;System.Dialog.Error.Title&quot; ) );</span>
+<span class="nc" id="L878">    mb.open();</span>
+<span class="nc" id="L879">  }</span>
+
+  private void showMessage( String message ) {
+<span class="nc" id="L882">    MessageBox mb = new MessageBox( shell, SWT.OK | SWT.ICON_INFORMATION );</span>
+<span class="nc" id="L883">    mb.setMessage( message );</span>
+<span class="nc" id="L884">    mb.setText( BaseMessages.getString( PKG, &quot;ElasticSearchBulkDialog.Test.TestOKTitle&quot; ) );</span>
+<span class="nc" id="L885">    mb.open();</span>
+<span class="nc" id="L886">  }</span>
+
+  @Override
+  public String toString() {
+<span class="nc" id="L890">    return this.getClass().getName();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>
