@@ -1,6 +1,6 @@
 # elasticsearch-bulk-insert
-This is an unofficial elasticsearch bulk insert plugin which support the newest version of Elasticsearch
-
+This is an unofficial elasticsearch bulk insert plugin which support the newest version of Elasticsearch.
+It's implemented by elastisearch high level rest api. 
 
 Building
 --------
