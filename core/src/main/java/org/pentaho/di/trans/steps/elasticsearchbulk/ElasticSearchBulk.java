@@ -95,38 +95,30 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
   public ElasticSearchBulk( StepMeta stepMeta, StepDataInterface stepDataInterface, int copyNr, TransMeta transMeta,
       Trans trans ) {
     super( stepMeta, stepDataInterface, copyNr, transMeta, trans );
-    currentRequest = new BulkRequest();
+
   }
 
-  public boolean processRow( StepMetaInterface smi, StepDataInterface sdi ) throws KettleException {
-
-    Object[] rowData = getRow();
-    if ( rowData == null ) {
-      if ( currentRequest.numberOfActions() > 0 ) {
-        // didn't fill a whole batch
-        processBatch( false );
+  public boolean init( StepMetaInterface smi, StepDataInterface sdi ) {
+    meta = (ElasticSearchBulkMeta) smi;
+    data = (ElasticSearchBulkData) sdi;
+    if ( super.init( smi, sdi ) ) {
+      try {
+        numberOfErrors = 0;
+        initFromMeta();
+        initClient();
+        this.currentRequest = new BulkRequest();
+      } catch ( Exception e ) {
+        logError( BaseMessages.getString( PKG, "ElasticSearchBulk.Log.ErrorOccurredDuringStepInitialize" )
+                + e.getLocalizedMessage() );
+        e.printStackTrace();
+        return false;
       }
-      setOutputDone();
-      return false;
+      return true;
     }
-
-    if ( first ) {
-      first = false;
-      setupData();
-      initFieldIndexes();
-    }
-
-    try {
-      data.inputRowBuffer[data.nextBufferRowIdx++] = rowData;
-      return indexRow( data.inputRowMeta, rowData ) || !stopOnError;
-    } catch ( KettleStepException e ) {
-      throw e;
-    } catch ( Exception e ) {
-      String msg = BaseMessages.getString( PKG, "ElasticSearchBulk.Log.Exception", e.getLocalizedMessage() );
-      logError( msg );
-      throw new KettleStepException( msg, e );
-    }
+    return false;
   }
+
+
 
   /**
    * Initialize <code>this.data</code>
@@ -158,16 +150,41 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
       if ( idFieldIndex == null ) {
         throw new KettleStepException( BaseMessages.getString( PKG, "ElasticSearchBulk.Error.InvalidIdField" ) );
       }
-    } else {
-      idFieldIndex = null;
     }
+  }
+
+  private void initFromMeta() {
+    index = environmentSubstitute( meta.getIndex() );
+    type = environmentSubstitute( meta.getType() );
+    batchSize = meta.getBatchSizeInt( this );
+    try {
+      timeout = Long.parseLong( environmentSubstitute( meta.getTimeOut() ) );
+    } catch ( NumberFormatException e ) {
+      timeout = null;
+    }
+    timeoutUnit = meta.getTimeoutUnit();
+    isJsonInsert = meta.isJsonInsert();
+    useOutput = meta.isUseOutput();
+    stopOnError = meta.isStopOnError();
+
+    columnsToJson = meta.getFieldsMap();
+    this.hasFields = columnsToJson.size() > 0;
+  }
+
+  private void initClient() {
+    List<ElasticSearchBulkMeta.Server> servers = meta.getServers();
+    HttpHost[] hosts = new HttpHost[servers.size()];
+    for ( int i=0; i<hosts.length; i++ ) {
+      //showMessage(BaseMessages.getString( PKG, "ElasticSearchBulkDialog.Test.TestOKTitle" ));
+      hosts[i] = new HttpHost(servers.get(i).getAddr().getHostName(), servers.get(i).getAddr().getPort());
+    }
+    client = new RestHighLevelClient(RestClient.builder(hosts));
   }
 
   private static Integer getFieldIdx( RowMetaInterface rowMeta, String fieldName ) {
     if ( fieldName == null ) {
       return null;
     }
-
     for ( int i = 0; i < rowMeta.size(); i++ ) {
       String name = rowMeta.getValueMeta( i ).getName();
       if ( fieldName.equals( name ) ) {
@@ -175,6 +192,34 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
       }
     }
     return null;
+  }
+
+  public boolean processRow( StepMetaInterface smi, StepDataInterface sdi ) throws KettleException {
+
+    Object[] rowData = getRow();
+    if ( rowData == null ) {
+      if ( currentRequest.numberOfActions() > 0 ) {
+        // didn't fill a whole batch
+        processBatch( false );
+      }
+      setOutputDone();
+      return false;
+    }
+    if(this.first) {
+      this.first = false;
+      setupData();
+      initFieldIndexes();
+    }
+    try {
+      data.inputRowBuffer[data.nextBufferRowIdx++] = rowData;
+      return indexRow( data.inputRowMeta, rowData ) || !stopOnError;
+    } catch ( KettleStepException e ) {
+      throw e;
+    } catch ( Exception e ) {
+      String msg = BaseMessages.getString( PKG, "ElasticSearchBulk.Log.Exception", e.getLocalizedMessage() );
+      logError( msg );
+      throw new KettleStepException( msg, e );
+    }
   }
 
   /**
@@ -185,14 +230,11 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
    */
 
   private boolean indexRow( RowMetaInterface rowMeta, Object[] row ) throws KettleStepException {
-    try {
-
-      String id = null;
+    try{
       if ( idFieldIndex == null ) {
         throw new KettleStepException("ID field must be set" );
       }
-      id = "" + row[idFieldIndex]; // "" just in case field isn't string
-
+      String id = "" + row[idFieldIndex]; // "" just in case field isn't string
       IndexRequest req = new IndexRequest(index, type, id);
       if ( isJsonInsert ) {
         addSourceFromJsonString( row, req );
@@ -200,10 +242,6 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
         addSourceFromRowFields( req, rowMeta, row );
       }
       currentRequest.add(req);
-
-
-
-
       if ( currentRequest.numberOfActions() >= batchSize ) {
         return processBatch( true );
       } else {
@@ -261,57 +299,13 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
     requestBuilder.source( jsonMap );
   }
 
-  public boolean init( StepMetaInterface smi, StepDataInterface sdi ) {
-    meta = (ElasticSearchBulkMeta) smi;
-    data = (ElasticSearchBulkData) sdi;
-
-    if ( super.init( smi, sdi ) ) {
-      try {
-        numberOfErrors = 0;
-        initFromMeta();
-        return true;
-      } catch ( Exception e ) {
-        logError( BaseMessages.getString( PKG, "ElasticSearchBulk.Log.ErrorOccurredDuringStepInitialize" )
-            + e.getMessage() );
-      }
-      return true;
-    }
-    return false;
-  }
-
-  private void initFromMeta() {
-    index = environmentSubstitute( meta.getIndex() );
-    type = environmentSubstitute( meta.getType() );
-    batchSize = meta.getBatchSizeInt( this );
-    try {
-      timeout = Long.parseLong( environmentSubstitute( meta.getTimeOut() ) );
-    } catch ( NumberFormatException e ) {
-      timeout = null;
-    }
-    timeoutUnit = meta.getTimeoutUnit();
-    isJsonInsert = meta.isJsonInsert();
-    useOutput = meta.isUseOutput();
-    stopOnError = meta.isStopOnError();
-
-    columnsToJson = meta.getFieldsMap();
-    this.hasFields = columnsToJson.size() > 0;
 
 
-    List<ElasticSearchBulkMeta.Server> servers = meta.getServers();
-    HttpHost[] hosts = new HttpHost[servers.size()];
-    for ( int i=0; i<hosts.length; i++ ) {
-      //showMessage(BaseMessages.getString( PKG, "ElasticSearchBulkDialog.Test.TestOKTitle" ));
-      hosts[i] = new HttpHost(servers.get(i).getAddr().getHostName(), servers.get(i).getAddr().getPort());
-    }
-    client = new RestHighLevelClient(RestClient.builder(hosts));
 
-  }
 
   private boolean processBatch( boolean makeNew ) {
     boolean responseOk = false;
-
     try {
-
       BulkResponse response = client.bulk(currentRequest);
       if(response.hasFailures()){
         logError( response.buildFailureMessage() );
@@ -328,8 +322,6 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
     } catch (IOException e) {
       logError( e.getLocalizedMessage() );
     }
-
-
 
     if ( makeNew ) {
       currentRequest = new BulkRequest() ;
