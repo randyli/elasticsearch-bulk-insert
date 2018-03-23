@@ -54,6 +54,7 @@
         <include>org.elasticsearch:elasticsearch-cli:jar</include>
         <include>org.elasticsearch:jna:jar</include>
         <include>org.elasticsearch:securesm:jar</include>
+        <include>org.elasticsearch.client:elasticsearch-rest-client:jar</include>
         <include>org.elasticsearch.client:elasticsearch-rest-high-level-client:jar</include>
         <include>org.hdrhistogram:HdrHistogram:jar</include>
         <include>com.spatial4j:spatial4j:jar</include>

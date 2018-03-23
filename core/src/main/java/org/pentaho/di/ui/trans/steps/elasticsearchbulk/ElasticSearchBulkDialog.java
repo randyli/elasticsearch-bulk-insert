@@ -127,7 +127,7 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
 
   private Button wStopOnError;
 
-  private Button wTest;
+  //private Button wTest;
 
   private Button wTestCl;
 
@@ -340,7 +340,7 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
     Control[] connectionControls = new Control[]{ wIndex, wType };
     placeControls( wIndexGroup, connectionControls );
 
-    BaseStepDialog.positionBottomButtons( wIndexGroup, new Button[]{ wTest }, Const.MARGIN, wType );
+    //BaseStepDialog.positionBottomButtons( wIndexGroup, new Button[]{ wTest }, Const.MARGIN, wType );
 
     fdIndexGroup = new FormData();
     fdIndexGroup.left = new FormAttachment( 0, Const.MARGIN );
