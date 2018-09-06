@@ -28,6 +28,12 @@ import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.custom.CTabItem;
@@ -39,9 +45,8 @@ import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
 import org.eclipse.swt.events.ShellAdapter;
 import org.eclipse.swt.events.ShellEvent;
-import org.eclipse.swt.layout.FormAttachment;
-import org.eclipse.swt.layout.FormData;
-import org.eclipse.swt.layout.FormLayout;
+import org.eclipse.swt.layout.*;
+
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
@@ -54,8 +59,9 @@ import org.eclipse.swt.widgets.MessageBox;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.Props;
 import org.pentaho.di.core.exception.KettleException;
@@ -115,21 +121,37 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
 
   private CTabItem wServersTab;
 
+  private Text wUserName;
+
+  private String userName;
+
+  private Text wPassword;
+
+  private String password;
+
+  private Text wConnectTimeout;
+
+  private int connectTimeout = ElasticSearchBulkMeta.DEFAULT_CONNECT_TIMEOUT;
+
+  private Text wSocketTimeout;
+
+  private int socketTimeout = ElasticSearchBulkMeta.DEFAULT_SOCKET_TIMEOUT;
+
+  private Text wMaxRetryTimeout;
+
+  private int maxRetryTimeout = ElasticSearchBulkMeta.DEFAULT_MAX_RETRY_TIMEOUT;
+
   private TableView wServers;
+
+  //private Group wAuthGroup;
 
   private CTabItem wSettingsTab;
 
   private TableView wSettings;
 
-  private LabelTimeComposite wTimeOut;
-
   private Label wlStopOnError;
 
   private Button wStopOnError;
-
-  //private Button wTest;
-
-  private Button wTestCl;
 
   private LabelComboVar wIdInField;
 
@@ -151,7 +173,6 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
     setShellImage( shell, model );
 
     lsMod = new ModifyListener() {
-
       public void modifyText( ModifyEvent e ) {
         model.setChanged();
       }
@@ -353,28 +374,66 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
     wServersTab = new CTabItem( wTabFolder, SWT.NONE );
     wServersTab.setText( BaseMessages.getString( PKG, "ElasticSearchBulkDialog.ServersTab.TabTitle" ) );
 
-    FormLayout serversLayout = new FormLayout();
-    serversLayout.marginWidth = Const.FORM_MARGIN;
-    serversLayout.marginHeight = Const.FORM_MARGIN;
 
     Composite wServersComp = new Composite( wTabFolder, SWT.NONE );
-    wServersComp.setLayout( serversLayout );
+    wServersComp.setLayout( new GridLayout(2, false) );
     props.setLook( wServersComp );
 
-    // Test button
-    wTestCl = new Button( wServersComp, SWT.PUSH );
-    wTestCl.setText( BaseMessages.getString( PKG, "ElasticSearchBulkDialog.TestCluster.Label" ) );
-    wTestCl.setToolTipText( BaseMessages.getString( PKG, "ElasticSearchBulkDialog.TestCluster.Tooltip" ) );
+    Group grpAuth = new Group(wServersComp, SWT.NONE);
+    grpAuth.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+    grpAuth.setText("Auth");
+    grpAuth.setLayout(new GridLayout(2, false));
+    props.setLook( grpAuth );
 
-    wTestCl.addListener( SWT.Selection, new Listener() {
-      public void handleEvent( Event arg0 ) {
-        test();
-      }
-    } );
+    Label lblUserName = new Label(grpAuth, SWT.NONE);
+    lblUserName.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+    lblUserName.setText("User Name:");
 
-    setButtonPositions( new Button[]{ wTestCl }, Const.MARGIN, null );
+    wUserName = new Text(grpAuth, SWT.BORDER);
+    wUserName.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
 
-    ColumnInfo[] columnsMeta = new ColumnInfo[2];
+    Label lblPassword = new Label(grpAuth, SWT.NONE);
+    lblPassword.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+    lblPassword.setText("Password:");
+
+    wPassword = new Text(grpAuth, SWT.BORDER);
+    wPassword.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
+    //fillAuthGroup(wServersComp);
+
+    Group grpTimeout = new Group(wServersComp, SWT.NONE);
+    grpTimeout.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+    grpTimeout.setText("Timeout");
+    grpTimeout.setLayout(new GridLayout(2, false));
+
+    Label lblConnectTimeout = new Label(grpTimeout, SWT.NONE);
+    lblConnectTimeout.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+    lblConnectTimeout.setText("Connect Timeout:");
+
+    wConnectTimeout = new Text(grpTimeout, SWT.BORDER);
+    wConnectTimeout.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
+
+    Label lblSocketTimeout = new Label(grpTimeout, SWT.NONE);
+    lblSocketTimeout.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+    lblSocketTimeout.setText("Socket Timeout:");
+
+    wSocketTimeout = new Text(grpTimeout, SWT.BORDER);
+    wSocketTimeout.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
+
+    Label lblMaxRetryTimeout = new Label(grpTimeout, SWT.NONE);
+    lblMaxRetryTimeout.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 1, 1));
+    lblMaxRetryTimeout.setText("Max Retry Timeout:");
+
+    wMaxRetryTimeout = new Text(grpTimeout, SWT.BORDER);
+    wMaxRetryTimeout.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 1, 1));
+
+    Group grpHosts = new Group(wServersComp, SWT.NONE);
+    grpHosts.setLayout(new FillLayout(SWT.HORIZONTAL));
+    grpHosts.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 1, 4));
+    grpHosts.setText("Hosts");
+    props.setLook( grpHosts );
+
+
+    ColumnInfo[] columnsMeta = new ColumnInfo[3];
     columnsMeta[0] =
       new ColumnInfo(
         BaseMessages.getString( PKG, "ElasticSearchBulkDialog.ServersTab.Address.Column" ),
@@ -383,24 +442,22 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
       new ColumnInfo(
         BaseMessages.getString( PKG, "ElasticSearchBulkDialog.ServersTab.Port.Column" ),
         ColumnInfo.COLUMN_TYPE_TEXT, true );
-
+    columnsMeta[2] =
+            new ColumnInfo(
+                    "Status",
+                    ColumnInfo.COLUMN_TYPE_TEXT, false );
     wServers =
       new TableView(
-        transMeta, wServersComp, SWT.BORDER | SWT.FULL_SELECTION | SWT.MULTI, columnsMeta, 1, lsMod, props );
-    FormData fdServers = new FormData();
-    fdServers.left = new FormAttachment( 0, Const.MARGIN );
-    fdServers.top = new FormAttachment( 0, Const.MARGIN );
-    fdServers.right = new FormAttachment( 100, -Const.MARGIN );
-    fdServers.bottom = new FormAttachment( wTestCl, -Const.MARGIN );
-    wServers.setLayoutData( fdServers );
+        transMeta, grpHosts, SWT.BORDER | SWT.FULL_SELECTION | SWT.MULTI, columnsMeta, 1, lsMod, props );
 
-    FormData fdServersComp = new FormData();
-    fdServersComp.left = new FormAttachment( 0, 0 );
-    fdServersComp.top = new FormAttachment( 0, 0 );
-    fdServersComp.right = new FormAttachment( 100, 0 );
-    fdServersComp.bottom = new FormAttachment( 100, 0 );
-    wServersComp.setLayoutData( fdServersComp );
-    wServersComp.layout();
+    Button btnTestAll = new Button(wServersComp, SWT.CENTER);
+    btnTestAll.setText("Test All");
+    btnTestAll.addSelectionListener(new SelectionAdapter() {
+      @Override
+      public void widgetSelected(SelectionEvent selectionEvent) {
+          testAll();
+      }
+    });
     wServersTab.setControl( wServersComp );
   }
 
@@ -522,13 +579,6 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
     settingGroupLayout.marginHeight = 10;
     wSettingsGroup.setLayout( settingGroupLayout );
 
-    // Timeout
-    wTimeOut =
-      new LabelTimeComposite( wSettingsGroup,
-        BaseMessages.getString( PKG, "ElasticSearchBulkDialog.TimeOut.Label" ),
-        BaseMessages.getString( PKG, "ElasticSearchBulkDialog.TimeOut.Tooltip" ) );
-    props.setLook( wTimeOut );
-    wTimeOut.addModifyListener( lsMod );
 
     // BatchSize
     wlBatchSize = new Label( wSettingsGroup, SWT.RIGHT );
@@ -640,7 +690,7 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
 
     Control[] settingsControls =
       new Control[]{
-        wlBatchSize, wBatchSize, wlStopOnError, wStopOnError, wTimeOut, wIdInField, wlIsOverwrite,
+        wlBatchSize, wBatchSize, wlStopOnError, wStopOnError, wIdInField, wlIsOverwrite,
         wIsOverwrite, wlUseOutput, wUseOutput, wIdOutField, wlIsJson, wIsJson, wJsonField };
     placeControls( wSettingsGroup, settingsControls );
 
@@ -734,12 +784,16 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
     wIndex.setText( Const.NVL( in.getIndex(), "" ) );
     wType.setText( Const.NVL( in.getType(), "" ) );
 
+    wUserName.setText(Const.NVL(in.getUserName(), ""));
+    wPassword.setText(Const.NVL(in.getPassword(), ""));
+
+    wConnectTimeout.setText(Const.NVL(""+in.getConnectTimeout(), "" + ElasticSearchBulkMeta.DEFAULT_CONNECT_TIMEOUT));
+    wSocketTimeout.setText(Const.NVL(""+in.getSocketTimeout(), "" + ElasticSearchBulkMeta.DEFAULT_SOCKET_TIMEOUT));
+    wMaxRetryTimeout.setText(Const.NVL(""+in.getMaxRetryTimeout(), "" + ElasticSearchBulkMeta.DEFAULT_MAX_RETRY_TIMEOUT));
+
     wBatchSize.setText( Const.NVL( in.getBatchSize(), "" + ElasticSearchBulkMeta.DEFAULT_BATCH_SIZE ) );
 
     wStopOnError.setSelection( in.isStopOnError() );
-
-    wTimeOut.setText( Const.NVL( in.getTimeOut(), "" ) );
-    wTimeOut.setTimeUnit( in.getTimeoutUnit() );
 
     wIdInField.setText( Const.NVL( in.getIdInField(), "" ) );
 
@@ -798,8 +852,6 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
     in.setIndex( wIndex.getText() );
 
     in.setBatchSize( wBatchSize.getText() );
-    in.setTimeOut( Const.NVL( wTimeOut.getText(), null ) );
-    in.setTimeoutUnit( wTimeOut.getTimeUnit() );
 
     in.setIdInField( wIdInField.getText() );
     //in.setOverWriteIfSameId( StringUtils.isNotBlank( wIdInField.getText() ) && wIsOverwrite.getSelection() );
@@ -808,6 +860,13 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
     in.setJsonField( wIsJson.getSelection() ? wJsonField.getText() : null );
     in.setIdOutField( wIdOutField.getText() );
     in.setUseOutput( wUseOutput.getSelection() );
+
+    in.setUserName(wUserName.getText());
+    in.setPassword(wPassword.getText());
+
+    in.setConnectTimeout(wConnectTimeout.getText());
+    in.setSocketTimeout(wSocketTimeout.getText());
+    in.setMaxRetryTimeout(wMaxRetryTimeout.getText());
 
     in.clearFields();
     if ( !wIsJson.getSelection() ) {
@@ -839,36 +898,69 @@ public class ElasticSearchBulkDialog extends BaseStepDialog implements StepDialo
   }
 
 
-  private void test( ) {
+  private void testAll( ) {
 
     // Save off the thread's context class loader to restore after the test
     ClassLoader originalClassloader = Thread.currentThread().getContextClassLoader();
     // Now ensure that the thread's context class loader is the plugin's classloader
     Thread.currentThread().setContextClassLoader( this.getClass().getClassLoader() );
-    RestHighLevelClient client = null;
-    try {
-      ElasticSearchBulkMeta tempMeta = new ElasticSearchBulkMeta();
-      toModel( tempMeta );
-      if ( !tempMeta.getServers().isEmpty() ) {
-        List<ElasticSearchBulkMeta.Server> servers = tempMeta.getServers();
-        HttpHost[] hosts = new HttpHost[servers.size()];
-        for ( int i=0; i<hosts.length; i++ ) {
-          //showMessage(BaseMessages.getString( PKG, "ElasticSearchBulkDialog.Test.TestOKTitle" ));
-          hosts[i] = new HttpHost(servers.get(i).getAddr().getHostName(), servers.get(i).getAddr().getPort());
-        }
-        client = new RestHighLevelClient(RestClient.builder(hosts));
-      }
-      boolean ping = client.ping();
-      if(ping){
-        showMessage(BaseMessages.getString( PKG, "ElasticSearchBulkDialog.Test.TestOKTitle" ));
-      }
 
-      client.close();
-    } catch ( IOException e ) {
-      showError( e.getLocalizedMessage() );
+    ElasticSearchBulkMeta tempMeta = new ElasticSearchBulkMeta();
+    toModel( tempMeta );
+    if ( !tempMeta.getServers().isEmpty() ) {
+      List<ElasticSearchBulkMeta.Server> servers = tempMeta.getServers();
+      HttpHost[] hosts = new HttpHost[servers.size()];
+      for ( int i=0; i<hosts.length; i++ ) {
+        String res = testOne(servers.get(i).address, servers.get(i).port);
+        wServers.setText(res, 3,  i);
+      }
     }
     // Restore the original classloader
     Thread.currentThread().setContextClassLoader( originalClassloader );
+  }
+
+  private String testOne(String host, int port) {
+    RestClient restClient;
+    userName = wUserName.getText();
+    password = wPassword.getText();
+
+    try {
+      connectTimeout = Integer.parseInt(wConnectTimeout.getText());
+      socketTimeout  = Integer.parseInt(wSocketTimeout.getText());
+      maxRetryTimeout = Integer.parseInt(wMaxRetryTimeout.getText());
+    }catch(NumberFormatException e) {
+
+    }
+    final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+    credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(userName, password));
+    RestClientBuilder builder = RestClient.builder(new HttpHost(host, port))
+            .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+              @Override
+              public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+              }
+            });
+    RestClientBuilder.RequestConfigCallback requestConfigCallback = new RestClientBuilder.RequestConfigCallback() {
+      @Override
+      public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+        return requestConfigBuilder.setConnectTimeout(connectTimeout).setSocketTimeout(socketTimeout);
+      }
+    };
+    builder.setRequestConfigCallback(requestConfigCallback);
+    builder.setMaxRetryTimeoutMillis(maxRetryTimeout);
+    restClient = builder.build();
+    try {
+      Response response = restClient.performRequest("GET", "/");
+      if(response.getStatusLine().getStatusCode() == 200) {
+         return "OK";
+      }
+      restClient.close();
+
+    } catch (IOException e) {
+        return e.getMessage();
+      //e.printStackTrace();
+    }
+    return "Unknown Error";
   }
 
   private void showError( String message ) {

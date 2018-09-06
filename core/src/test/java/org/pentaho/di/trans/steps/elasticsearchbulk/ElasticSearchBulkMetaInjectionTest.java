@@ -22,7 +22,6 @@
 
 package org.pentaho.di.trans.steps.elasticsearchbulk;
 
-import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -90,16 +89,6 @@ public class ElasticSearchBulkMetaInjectionTest extends BaseMetadataInjectionTes
         return meta.getBatchSize();
       }
     } );
-    check( "TIMEOUT_VALUE", new StringGetter() {
-      public String get() {
-        return meta.getTimeOut();
-      }
-    } );
-    check( "TIMEOUT_UNIT", new EnumGetter() {
-      public TimeUnit get() {
-        return meta.getTimeoutUnit();
-      }
-    }, TimeUnit.class );
     check( "SERVER.ADDRESS", new StringGetter() {
       public String get() {
         return meta.servers.get( 0 ).address;

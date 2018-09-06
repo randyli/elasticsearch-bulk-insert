@@ -23,23 +23,26 @@
 package org.pentaho.di.trans.steps.elasticsearchbulk;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpHost;
-import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.client.RestClientBuilder;
+import org.json.simple.JSONArray;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleStepException;
-import org.pentaho.di.core.row.RowDataUtil;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.i18n.BaseMessages;
@@ -50,6 +53,7 @@ import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.step.StepMetaInterface;
+import org.json.simple.JSONObject;
 
 /**
  * Does bulk insert of data into ElasticSearch
@@ -65,7 +69,7 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
   private ElasticSearchBulkMeta meta;
   private ElasticSearchBulkData data;
 
-  private RestHighLevelClient client = null;
+  private RestClient restClient = null;
 
   private String index;
   private String type;
@@ -78,9 +82,6 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
   private String idOutFieldName = null;
   private Integer idFieldIndex = null;
 
-  private Long timeout = null;
-  private TimeUnit timeoutUnit = TimeUnit.MILLISECONDS;
-
   // private long duration = 0L;
   private int numberOfErrors = 0;
 
@@ -90,7 +91,7 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
   private Map<String, String> columnsToJson;
   private boolean hasFields;
 
-  private BulkRequest currentRequest;
+  private Vector<String> bulkData;
 
   public ElasticSearchBulk( StepMeta stepMeta, StepDataInterface stepDataInterface, int copyNr, TransMeta transMeta,
       Trans trans ) {
@@ -106,7 +107,7 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
         numberOfErrors = 0;
         initFromMeta();
         initClient();
-        this.currentRequest = new BulkRequest();
+        this.bulkData = new Vector<>();
       } catch ( Exception e ) {
         logError( BaseMessages.getString( PKG, "ElasticSearchBulk.Log.ErrorOccurredDuringStepInitialize" )
                 + e.getLocalizedMessage() );
@@ -157,12 +158,7 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
     index = environmentSubstitute( meta.getIndex() );
     type = environmentSubstitute( meta.getType() );
     batchSize = meta.getBatchSizeInt( this );
-    try {
-      timeout = Long.parseLong( environmentSubstitute( meta.getTimeOut() ) );
-    } catch ( NumberFormatException e ) {
-      timeout = null;
-    }
-    timeoutUnit = meta.getTimeoutUnit();
+
     isJsonInsert = meta.isJsonInsert();
     useOutput = meta.isUseOutput();
     stopOnError = meta.isStopOnError();
@@ -175,10 +171,38 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
     List<ElasticSearchBulkMeta.Server> servers = meta.getServers();
     HttpHost[] hosts = new HttpHost[servers.size()];
     for ( int i=0; i<hosts.length; i++ ) {
-      //showMessage(BaseMessages.getString( PKG, "ElasticSearchBulkDialog.Test.TestOKTitle" ));
-      hosts[i] = new HttpHost(servers.get(i).getAddr().getHostName(), servers.get(i).getAddr().getPort());
+      hosts[i] = new HttpHost(servers.get(i).address, servers.get(i).port);
     }
-    client = new RestHighLevelClient(RestClient.builder(hosts));
+
+    // http basic authentication
+
+    System.out.println("user name:"+meta.getUserName());
+    System.out.println("password:"+meta.getPassword());
+    System.out.println("connection timeout:"+meta.getConnectTimeout());
+    System.out.println("socket timeout:"+meta.getSocketTimeout());
+    System.out.println("max retry timeout:"+meta.getMaxRetryTimeout());
+    RestClientBuilder builder = RestClient.builder(hosts);
+
+    if(meta.getUserName()!= null && meta.getUserName() != "") {
+      final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+      credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(meta.getUserName(), meta.getPassword()));
+      builder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+        @Override
+        public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+          return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+        }
+      });
+    }
+    // socket timeout connection timeout and max retry timeout
+    RestClientBuilder.RequestConfigCallback requestConfigCallback = new RestClientBuilder.RequestConfigCallback() {
+      @Override
+      public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+        return requestConfigBuilder.setConnectTimeout(meta.getConnectTimeout()).setSocketTimeout(meta.getSocketTimeout());
+      }
+    };
+    builder.setRequestConfigCallback(requestConfigCallback);
+    builder.setMaxRetryTimeoutMillis(meta.getMaxRetryTimeout());
+    restClient = builder.build();
   }
 
   private static Integer getFieldIdx( RowMetaInterface rowMeta, String fieldName ) {
@@ -198,9 +222,13 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
 
     Object[] rowData = getRow();
     if ( rowData == null ) {
-      if ( currentRequest.numberOfActions() > 0 ) {
+      if ( bulkData.size() > 0 ) {
         // didn't fill a whole batch
-        processBatch( false );
+        try {
+          processBatch(false);
+        }catch(IOException e){
+          throw new KettleStepException("bulk insert error", e);
+        }
       }
       setOutputDone();
       return false;
@@ -235,19 +263,18 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
         throw new KettleStepException("ID field must be set" );
       }
       String id = "" + row[idFieldIndex]; // "" just in case field isn't string
-      IndexRequest req = new IndexRequest(index, type, id);
-      if ( isJsonInsert ) {
-        addSourceFromJsonString( row, req );
-      } else {
-        addSourceFromRowFields( req, rowMeta, row );
-      }
-      currentRequest.add(req);
-      if ( currentRequest.numberOfActions() >= batchSize ) {
-        return processBatch( true );
-      } else {
-        return true;
-      }
 
+      Object jsonString;//row[jsonFieldIdx];
+      if ( isJsonInsert ) {
+        jsonString =  row[jsonFieldIdx];
+      } else {
+        jsonString = jsonEncodeRowFields(rowMeta, row);
+      }
+      addSourceFromJsonString( jsonString, id);
+      if ( bulkData.size()/2 >= batchSize ) {
+        return processBatch( true );
+      }
+      return true;
     } catch ( KettleStepException e ) {
       throw e;
     } catch ( Exception e ) {
@@ -256,93 +283,90 @@ public class ElasticSearchBulk extends BaseStep implements StepInterface {
     }
   }
 
-  /**
-   * @param row
-   * @param requestBuilder
-   */
-  private void addSourceFromJsonString( Object[] row, IndexRequest requestBuilder ) throws KettleStepException {
-    Object jsonString = row[jsonFieldIdx];
+  private void addSourceFromJsonString( Object jsonString, String id ) throws KettleStepException {
+    JSONObject obj = new JSONObject();
+    obj.put("_index", meta.getIndex());
+    obj.put("_type", meta.getType());
+    obj.put("_id", id);
+    JSONObject op = new JSONObject();
+    op.put("index", obj);
+    bulkData.add(op.toJSONString());
     if ( jsonString instanceof byte[] ) {
-      requestBuilder.source( (byte[]) jsonString,  XContentType.JSON);
+      bulkData.add(new String((byte[])jsonString));
     } else if ( jsonString instanceof String ) {
-      requestBuilder.source((String) jsonString ,  XContentType.JSON);
+      bulkData.add((String)jsonString);
     } else {
       throw new KettleStepException( BaseMessages.getString( "ElasticSearchBulk.Error.NoJsonFieldFormat" ) );
     }
   }
 
   /**
-   * @param requestBuilder
    * @param rowMeta
    * @param row
    * @throws IOException
    */
-  private void addSourceFromRowFields( IndexRequest requestBuilder, RowMetaInterface rowMeta, Object[] row ) {
-    Map<String, Object> jsonMap = new HashMap<>();
+  private String jsonEncodeRowFields( RowMetaInterface rowMeta, Object[] row ) {
+    JSONObject obj = new JSONObject();
     for ( int i = 0; i < rowMeta.size(); i++ ) {
-      if ( idFieldIndex != null && i == idFieldIndex ) { // skip id
-        continue;
-      }
-
       ValueMetaInterface valueMeta = rowMeta.getValueMeta( i );
       String name = hasFields ? columnsToJson.get( valueMeta.getName() ) : valueMeta.getName();
       Object value = row[i];
-      if ( value instanceof Date && value.getClass() != Date.class ) {
+      if ( value instanceof Date) {
         Date subDate = (Date) value;
         // create a genuine Date object, or jsonBuilder will not recognize it
-        value = new Date( subDate.getTime() );
+        value = subDate.toString();
       }
       if ( StringUtils.isNotBlank( name ) ) {
-        jsonMap.put( name, value );
+        obj.put( name, value );
       }
     }
-    requestBuilder.source( jsonMap );
+    return obj.toJSONString();
   }
 
+  private boolean processBatch( boolean makeNew ) throws IOException {
+    StringBuilder s = new StringBuilder();
 
-
-
-
-  private boolean processBatch( boolean makeNew ) {
-    boolean responseOk = false;
+    for(int i=0; i< bulkData.size(); i++){
+      s.append(bulkData.get(i));
+      s.append("\n");
+    }
+    bulkData.clear();
+    //System.out.println(s);
+    NStringEntity entity = new NStringEntity(s.toString());
+    entity.setContentType("application/x-ndjson");
+    //Request r = new Request("POST", "/_bulk", Collections.emptyMap(), entity);
+    Response response = restClient.performRequest("POST","/_bulk", Collections.emptyMap(), entity);
+    //System.out.println(response);
+    String responseBody = EntityUtils.toString(response.getEntity());
+    JSONParser parser=new JSONParser();
     try {
-      BulkResponse response = client.bulk(currentRequest);
-      if(response.hasFailures()){
-        logError( response.buildFailureMessage() );
-      }else{
-        responseOk = true;
+      JSONObject res = (JSONObject) parser.parse(responseBody);
+      Boolean isError = (Boolean)res.get("errors");
+      if(isError == false){
+        return true;
       }
-/*
-      if ( timeout != null && timeoutUnit != null ) {
-        response = actionFuture.actionGet( timeout, timeoutUnit );
-      } else {
-        response = actionFuture.actionGet();
+      JSONArray items = (JSONArray)res.get("items");
+      for(int i=0; i< items.size(); i++){
+        JSONObject item = (JSONObject) items.get(i);
+        if(!"201".equals(item.get("status"))){
+          logError("Some error on bulk:"+ item.toJSONString());
+          if(stopOnError) {
+            return false;
+          }
+        }
       }
-  */
-    } catch (IOException e) {
-      logError( e.getLocalizedMessage() );
+    }catch(ParseException e){
+      logError(e.getMessage());
+      return false;
     }
-
-    if ( makeNew ) {
-      currentRequest = new BulkRequest() ;
-      data.nextBufferRowIdx = 0;
-      data.inputRowBuffer = new Object[batchSize][];
-    } else {
-      currentRequest = null;
-      data.inputRowBuffer = null;
-    }
-    return responseOk;
+    return true;
   }
 
 
-  private void disposeClient() {
-
-    if ( client != null ) {
-      try {
-        client.close();
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
+  private void disposeClient() throws IOException{
+    if(restClient!=null){
+      restClient.close();
+      restClient = null;
     }
   }
 

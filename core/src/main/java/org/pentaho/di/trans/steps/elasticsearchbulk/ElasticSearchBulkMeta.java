@@ -89,7 +89,7 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
     static final String TAG_ID_OUT_FIELD = "idOutputField";
     static final String TAG_USE_OUTPUT = "useOutput";
     static final String TAG_STOP_ON_ERROR = "stopOnError";
-    static final String TAG_TIMEOUT = "timeout";
+    //static final String TAG_TIMEOUT = "timeout";
     static final String TAG_TIMEOUT_UNIT = "timeoutUnit";
     static final String TAG_BATCH_SIZE = "batchSize";
 
@@ -104,6 +104,13 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
     static final String TAG_SERVER_ADDRESS = "address";
     static final String TAG_SERVER_PORT = "port";
 
+    static final String TAG_USERNAME = "username";
+    static final String TAG_PASSWORD = "password";
+
+    static final String TAG_CONNECT_TIMEOUT = "connectTimeout";
+    static final String TAG_SOCKET_TIMEOUT = "socketTimeout";
+    static final String TAG_MAX_RETRY_TIMEOUT = "maxRetryTimeout";
+
     public static final String TAG_SETTINGS = "settings";
     public static final String TAG_SETTING = "setting";
     public static final String TAG_SETTING_NAME = "name";
@@ -113,9 +120,13 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
   }
 
   public static final int DEFAULT_BATCH_SIZE = 100;
-  public static final Long DEFAULT_TIMEOUT = 10L;
+  //public static final Long DEFAULT_TIMEOUT = 10L;
   public static final TimeUnit DEFAULT_TIMEOUT_UNIT = TimeUnit.SECONDS;
   public static final int DEFAULT_PORT = 9200;
+  public static final int DEFAULT_CONNECT_TIMEOUT = 1000;
+  public static final  int DEFAULT_SOCKET_TIMEOUT = 30000;
+  public static final  int DEFAULT_MAX_RETRY_TIMEOUT = 30000;
+
 
   // ///////////
   // FIELDS //
@@ -143,10 +154,25 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
 
   @Injection( name = "BATCH_SIZE" )
   private String batchSize;
-  @Injection( name = "TIMEOUT_VALUE" )
-  private String timeout;
+ // @Injection( name = "TIMEOUT_VALUE" )
+ // private String timeout;
   @Injection( name = "TIMEOUT_UNIT" )
   private TimeUnit timeoutUnit;
+
+
+
+  @Injection( name = "USER_NAME" )
+  private String userName;
+  @Injection( name = "PASSWORD" )
+  private String password;
+  @Injection( name = "CONNECT_TIMEOUT" )
+  private int connectTimeout;
+
+  @Injection( name = "SOCKET_TIMEOUT" )
+  private int socketTimeout;
+
+  @Injection( name = "MAX_RETRY_TIMEOUT" )
+  private int maxRetryTimeout;
 
   @InjectionDeep( prefix = "SERVER" )
   List<Server> servers = new ArrayList<>();
@@ -332,27 +358,77 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
     return Const.toInt( vars.environmentSubstitute( this.batchSize ), DEFAULT_BATCH_SIZE );
   }
 
-  /**
-   * @return Returns the TimeOut.
-   */
-  public String getTimeOut() {
-    return timeout;
-  }
-
-  /**
-   * @param TimeOut
-   *          The TimeOut to set.
-   */
-  public void setTimeOut( String TimeOut ) {
-    this.timeout = TimeOut;
-  }
-
   public TimeUnit getTimeoutUnit() {
     return timeoutUnit != null ? timeoutUnit : DEFAULT_TIMEOUT_UNIT;
   }
 
   public void setTimeoutUnit( TimeUnit timeoutUnit ) {
     this.timeoutUnit = timeoutUnit;
+  }
+
+
+  public String getUserName() {
+    return userName;
+  }
+
+  public void setUserName(String userName) {
+    this.userName = userName;
+  }
+
+  public String getPassword() {
+    return password;
+  }
+
+  public void setPassword(String password) {
+    this.password = password;
+  }
+
+  public int getConnectTimeout() {
+    return connectTimeout;
+  }
+
+  public void setConnectTimeout(int connectTimeout) {
+    this.connectTimeout = connectTimeout;
+  }
+
+  public void setConnectTimeout(String connectTimeout) {
+    try{
+      this.connectTimeout = Integer.parseInt(connectTimeout);
+    }catch(NumberFormatException e){
+      this.connectTimeout = DEFAULT_CONNECT_TIMEOUT;
+    }
+  }
+
+  public int getSocketTimeout() {
+    return socketTimeout;
+  }
+
+  public void setSocketTimeout(int socketTimeout) {
+    this.socketTimeout = socketTimeout;
+  }
+
+  public void setSocketTimeout(String socketTimeout) {
+    try{
+      this.socketTimeout = Integer.parseInt(socketTimeout);
+    }catch(NumberFormatException e){
+      this.socketTimeout = DEFAULT_SOCKET_TIMEOUT;
+    }
+  }
+
+  public int getMaxRetryTimeout() {
+    return maxRetryTimeout;
+  }
+
+  public void setMaxRetryTimeout(int maxRetryTimeout) {
+    this.maxRetryTimeout = maxRetryTimeout;
+  }
+
+  public void setMaxRetryTimeout(String maxRetryTimeout) {
+    try{
+      this.maxRetryTimeout = Integer.parseInt(maxRetryTimeout);
+    }catch(NumberFormatException e){
+      this.maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT;
+    }
   }
 
   // ////////////////
@@ -380,6 +456,10 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
     idOutField = null;
     useOutput = false;
     stopOnError = true;
+
+    connectTimeout = 1000;
+    socketTimeout = 30000;
+    maxRetryTimeout = 30000;
   }
 
   /* This function adds meta data to the rows being pushed out */
@@ -402,7 +482,7 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
       Node general = XMLHandler.getSubNode( stepnode, Dom.TAG_GENERAL );
 
       batchSize = XMLHandler.getTagValue( general, Dom.TAG_BATCH_SIZE );
-      timeout = XMLHandler.getTagValue( general, Dom.TAG_TIMEOUT );
+      //timeout = XMLHandler.getTagValue( general, Dom.TAG_TIMEOUT );
       String timeoutStr = XMLHandler.getTagValue( general, Dom.TAG_TIMEOUT_UNIT );
       try {
         timeoutUnit = TimeUnit.valueOf( timeoutStr );
@@ -412,6 +492,13 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
 
       setIndex( XMLHandler.getTagValue( general, Dom.TAG_INDEX ) );
       setType( XMLHandler.getTagValue( general, Dom.TAG_TYPE ) );
+
+      setUserName(XMLHandler.getTagValue( general, Dom.TAG_USERNAME ));
+      setPassword(XMLHandler.getTagValue( general, Dom.TAG_PASSWORD ));
+
+      setConnectTimeout(XMLHandler.getTagValue( general, Dom.TAG_CONNECT_TIMEOUT ));
+      setSocketTimeout(XMLHandler.getTagValue( general, Dom.TAG_SOCKET_TIMEOUT ));
+      setMaxRetryTimeout(XMLHandler.getTagValue( general, Dom.TAG_MAX_RETRY_TIMEOUT ));
 
       setJsonInsert( parseBool( XMLHandler.getTagValue( general, Dom.TAG_IS_JSON ) ) );
       setJsonField( XMLHandler.getTagValue( general, Dom.TAG_JSON_FIELD ) );
@@ -490,8 +577,15 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
     retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_TYPE, getType() ) );
 
     retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_BATCH_SIZE, batchSize ) );
-    retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_TIMEOUT, timeout ) );
+    //retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_TIMEOUT, timeout ) );
     retval.append( indent.toString() ).append( XMLHandler.addTagValue( Dom.TAG_TIMEOUT_UNIT, timeoutUnit.toString() ) );
+
+    retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_USERNAME, getUserName() ) );
+    retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_PASSWORD, getPassword() ) );
+
+    retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_CONNECT_TIMEOUT, getConnectTimeout() ) );
+    retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_SOCKET_TIMEOUT, getSocketTimeout() ) );
+    retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_MAX_RETRY_TIMEOUT, getMaxRetryTimeout() ) );
 
     retval.append( indent.toString() + XMLHandler.addTagValue( Dom.TAG_IS_JSON, isJsonInsert() ) );
     if ( getJsonField() != null ) {
@@ -595,13 +689,21 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
       setType( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_TYPE ) ) );
 
       setBatchSize( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_BATCH_SIZE ) ) );
-      setTimeOut( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_TIMEOUT ) ) );
+      //setTimeOut( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_TIMEOUT ) ) );
       String timeoutStr = rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_TIMEOUT_UNIT ) );
       try {
         timeoutUnit = TimeUnit.valueOf( timeoutStr );
       } catch ( Exception e ) {
         timeoutUnit = DEFAULT_TIMEOUT_UNIT;
       }
+
+      setUserName( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_USERNAME ) ) );
+      setPassword( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_PASSWORD ) ) );
+
+      setConnectTimeout( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_CONNECT_TIMEOUT ) ) );
+      setSocketTimeout( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_SOCKET_TIMEOUT ) ) );
+      setMaxRetryTimeout( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_MAX_RETRY_TIMEOUT ) ) );
+
 
       setJsonInsert( rep.getStepAttributeBoolean( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_IS_JSON ) ) );
       setJsonField( ( rep.getStepAttributeString( id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_JSON_FIELD ) ) ) );
@@ -656,9 +758,16 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
       rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_TYPE ), getType() );
 
       rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_BATCH_SIZE ), batchSize );
-      rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_TIMEOUT ), getTimeOut() );
+      //rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_TIMEOUT ), getTimeOut() );
       rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_TIMEOUT_UNIT ),
           getTimeoutUnit().toString() );
+
+      rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_USERNAME ), getUserName() );
+      rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_PASSWORD ), getPassword() );
+
+      rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_CONNECT_TIMEOUT ), getConnectTimeout() );
+      rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_SOCKET_TIMEOUT ), getSocketTimeout() );
+      rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_MAX_RETRY_TIMEOUT ), getMaxRetryTimeout() );
 
       rep.saveStepAttribute( id_transformation, id_step, joinRepAttr( Dom.TAG_GENERAL, Dom.TAG_IS_JSON ),
           isJsonInsert() );
@@ -784,10 +893,6 @@ public class ElasticSearchBulkMeta extends BaseStepMeta implements StepMetaInter
     public String address;
     @Injection( name = "PORT" )
     public int port;
-
-    public InetSocketAddress getAddr() {
-      return new InetSocketAddress(address, port);
-    }
   }
 
   public static class Field {
