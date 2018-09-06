@@ -2,6 +2,8 @@
 This is an unofficial elasticsearch bulk insert plugin which support the newest version of Elasticsearch.
 It's implemented by elastisearch low level rest api. 
 
+It's tested in kettle 8.1 
+
 Building
 --------
 It's a maven build, so `mvn clean install` is a typical default for a local build.
